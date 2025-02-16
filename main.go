@@ -1,33 +1,17 @@
 package main
 
 import (
+	"context"
+	"first-little-server/application"
 	"fmt"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"net/http"
 )
 
 func main() {
-	// A method name prefixed with new is a golang convention to indicate a constructor.
-	// It is usually preferable to use these constructor methods when available.
-	router := chi.NewRouter()
-	router.Use(middleware.Logger)
+	app := application.NewApp()
 
-	router.Get("/hello", HelloHandler)
+	err := app.Start(context.TODO())
 
-	server := &http.Server{
-		Addr:    ":3000",
-		Handler: router,
-	}
-
-	err := server.ListenAndServe()
 	if err != nil {
-		fmt.Println("Root error:", err)
-		return
+		fmt.Println("failed to start app:", err)
 	}
-}
-
-// HelloHandler sends "hello world" to the client.
-func HelloHandler(writer http.ResponseWriter, request *http.Request) {
-	_, _ = writer.Write([]byte("Hello World"))
 }
