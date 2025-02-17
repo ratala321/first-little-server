@@ -6,6 +6,7 @@ import (
 	"errors"
 	"first-little-server/model"
 	"fmt"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -87,7 +88,7 @@ func (repo *RedisRepo) DeleteByID(ctx context.Context, id uint64) error {
 		return fmt.Errorf("failed to delete order: %w", err)
 	}
 
-	if err := txPipe.SRem(ctx, key).Err(); err != nil {
+	if err := txPipe.SRem(ctx, "orders", key).Err(); err != nil {
 		txPipe.Discard()
 		return fmt.Errorf("failed to remove from orders set %w", err)
 	}
