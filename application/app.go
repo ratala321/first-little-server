@@ -3,29 +3,34 @@ package application
 import (
 	"context"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"net/http"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type App struct {
 	router http.Handler
 	rdb    *redis.Client
+	config Config
 }
 
-func NewApp() *App {
+func NewApp(config Config) *App {
 	app := &App{
-		rdb: redis.NewClient(&redis.Options{}),
+		rdb: redis.NewClient(&redis.Options{
+			Addr: config.RedisAddress,
+		}),
+		config: config,
 	}
 
 	app.LoadRoutes()
-	
+
 	return app
 }
 
 func (app *App) Start(ctx context.Context) error {
 	server := &http.Server{
-		Addr:    ":3000",
+		Addr:    fmt.Sprintf(":%d", app.config.ServerPort),
 		Handler: app.router,
 	}
 
