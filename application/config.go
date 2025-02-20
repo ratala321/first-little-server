@@ -7,9 +7,18 @@ import (
 	"strconv"
 )
 
+type EnvDatabase string
+
+const (
+	PostgresEnv EnvDatabase = "postgres"
+	ReddisEnv   EnvDatabase = "reddis"
+)
+
 type Config struct {
-	RedisAddress string
-	ServerPort   uint16
+	Database        EnvDatabase
+	RedisAddress    string
+	PostgresAddress string
+	ServerPort      uint16
 }
 
 func LoadConfig() Config {
@@ -19,12 +28,22 @@ func LoadConfig() Config {
 	}
 
 	conf := Config{
-		RedisAddress: "localhost:6379",
-		ServerPort:   3000,
+		Database:        ReddisEnv,
+		RedisAddress:    "localhost:6379",
+		PostgresAddress: "localhost:5432",
+		ServerPort:      3000,
+	}
+
+	if databaseEnv, exist := os.LookupEnv("GOSERVER_DATABASE"); exist {
+		conf.Database = EnvDatabase(databaseEnv)
 	}
 
 	if redisAddr, exist := os.LookupEnv("GOSERVER_REDDIS_ADDR"); exist {
 		conf.RedisAddress = redisAddr
+	}
+
+	if postgresAddr, exist := os.LookupEnv("GOSERVER_POSTGRES_ADDR"); exist {
+		conf.PostgresAddress = postgresAddr
 	}
 
 	if serverPort, exist := os.LookupEnv("GOSERVER_SERVER_PORT"); exist {
