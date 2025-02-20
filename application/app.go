@@ -5,21 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type App struct {
 	router http.Handler
-	rdb    *redis.Client
+	ds     *Datastore
 	config Config
 }
 
-func NewApp(config Config) *App {
+func NewApp(ctx context.Context, config Config) *App {
 	app := &App{
-		rdb: redis.NewClient(&redis.Options{
-			Addr: config.RedisAddress,
-		}),
+		ds:     NewDatastore(ctx, config),
 		config: config,
 	}
 
@@ -34,15 +30,14 @@ func (app *App) Start(ctx context.Context) error {
 		Handler: app.router,
 	}
 
-	redisErr := app.rdb.Ping(ctx).Err()
-	if redisErr != nil {
-		return fmt.Errorf("error when pinging redis: %w", redisErr)
+	if err := app.ds.Ping(ctx); err != nil {
+		return err
 	}
 
 	// Wrap defer call in anonymous function because defer keyword does not work when returning an error.
 	defer func() {
-		if err := app.rdb.Close(); err != nil {
-			fmt.Println("failed to close redis", err)
+		if err := app.ds.Close(ctx); err != nil {
+			fmt.Println("failed to close datastore", err)
 		}
 	}()
 

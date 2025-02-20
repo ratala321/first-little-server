@@ -9,10 +9,10 @@ import (
 )
 
 func main() {
-	app := application.NewApp(application.LoadConfig())
-
 	ctx, cancelFunc := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelFunc()
+
+	app := application.NewApp(ctx, application.LoadConfig())
 
 	err := app.Start(ctx)
 	if err != nil {
