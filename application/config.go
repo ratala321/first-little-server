@@ -1,6 +1,8 @@
 package application
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/joho/godotenv"
 	"log"
 	"os"
@@ -42,9 +44,7 @@ func LoadConfig() Config {
 		conf.RedisAddress = redisAddr
 	}
 
-	if postgresAddr, exist := os.LookupEnv("GOSERVER_POSTGRES_ADDR"); exist {
-		conf.PostgresAddress = postgresAddr
-	}
+	setPostgresAddressFromEnvVariables(&conf)
 
 	if serverPort, exist := os.LookupEnv("GOSERVER_SERVER_PORT"); exist {
 		if serverPort, err := strconv.ParseInt(serverPort, 10, 16); err == nil {
@@ -53,4 +53,40 @@ func LoadConfig() Config {
 	}
 
 	return conf
+}
+
+func setPostgresAddressFromEnvVariables(conf *Config) {
+	var postgresCredentials struct {
+		DatabaseName string `json:"databaseName"`
+		Username     string `json:"username"`
+		Password     string `json:"password"`
+	}
+
+	postgresAddr, exist := os.LookupEnv("GOSERVER_POSTGRES_ADDR")
+	if !exist {
+		fmt.Println("No postgres address specified in environment")
+		return
+	}
+
+	postgresCredentialsFileName, exist := os.LookupEnv("GOSERVER_POSTGRES_CREDENTIALS")
+	if !exist {
+		fmt.Println("No postgres credentials file specified in environment")
+		return
+	}
+
+	file, err := os.ReadFile(postgresCredentialsFileName)
+	if err != nil {
+		_ = fmt.Errorf("error reading postgres credentials file: %v", err)
+		return
+	}
+
+	err = json.Unmarshal(file, &postgresCredentials)
+	if err != nil {
+		_ = fmt.Errorf("error unmarshalling postgres credentials: %v", err)
+		return
+	}
+
+	conf.PostgresAddress = "postgresql://" + postgresAddr +
+		"/" + postgresCredentials.DatabaseName +
+		"?user=" + postgresCredentials.Username + "&password=" + postgresCredentials.Password
 }
