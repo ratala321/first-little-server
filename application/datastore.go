@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"first-little-server/order"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
@@ -85,10 +86,20 @@ func (ds *Datastore) Close(ctx context.Context) error {
 	return fmt.Errorf("database %s not supported", ds.config.Database)
 }
 
-func (ds *Datastore) getRedisClient() *redis.Client {
-	return ds.rdb
-}
+// GetActiveRepo returns the current active repository
+// If no current repository is active, returns null.
+func (ds *Datastore) GetActiveRepo() order.Repository {
+	if ds.pgb != nil {
+		return &order.PostgresRepo{
+			Client: ds.pgb,
+		}
+	}
 
-func (ds *Datastore) getPostgresClient() *pgx.Conn {
-	return ds.pgb
+	if ds.rdb != nil {
+		return &order.RedisRepo{
+			Client: ds.rdb,
+		}
+	}
+
+	return nil
 }

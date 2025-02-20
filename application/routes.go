@@ -23,9 +23,7 @@ func (app *App) LoadRoutes() {
 
 func (app *App) LoadOrderRoutes(router chi.Router) {
 	orderHandler := &order.Handler{
-		Repo: &order.RedisRepo{
-			Client: app.ds.getRedisClient(),
-		},
+		Repo: app.ds.GetActiveRepo(),
 	}
 
 	router.Post("/", orderHandler.Create)
