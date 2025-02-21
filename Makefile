@@ -1,4 +1,4 @@
-.PHONY: fmt vet build
+.PHONY: fmt vet build clean
 
 all: fmt vet build
 
@@ -10,3 +10,6 @@ vet: fmt
 
 build: vet
 	go build
+
+clean:
+	go clean
