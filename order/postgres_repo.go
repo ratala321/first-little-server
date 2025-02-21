@@ -12,7 +12,10 @@ type PostgresRepo struct {
 }
 
 func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
-	// TODO Convert to transaction in order to add both order and line_items at once.
+	tx, err := p.Client.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction for order: %w", err)
+	}
 
 	orderIdBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(orderIdBytes, order.OrderID)
@@ -22,23 +25,31 @@ func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
 		"customerId": order.CustomerID,
 		"createdAt":  order.CreatedAt,
 	}
-	_, err := p.Client.Exec(ctx,
+	_, err = tx.Exec(ctx,
 		"INSERT INTO order_store (order_id, customer_id, created_at)"+
 			"VALUES (@orderId, @customerId, @createdAt)", args)
 
 	if err != nil {
+		_ = tx.Rollback(ctx)
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
 	for _, item := range order.LineItems {
-		_, err := p.Client.Exec(ctx,
+		_, err := tx.Exec(ctx,
 			"INSERT INTO line_item (item_id, quantity, price, order_id)"+
 				"VALUES ($1, $2, $3, $4)",
 			item.ItemID, item.Quantity, item.Price, orderIdBytes)
 
 		if err != nil {
+			_ = tx.Rollback(ctx)
 			return fmt.Errorf("failed to insert line item: %w", err)
 		}
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		return fmt.Errorf("failed to commit order transaction %w", err)
 	}
 
 	return nil
