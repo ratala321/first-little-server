@@ -13,6 +13,12 @@ type PostgresRepo struct {
 
 func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
 	tx, err := p.Client.BeginTx(ctx, pgx.TxOptions{})
+	defer func(context.Context, pgx.Tx, error) {
+		if err != nil {
+			_ = tx.Rollback(ctx)
+		}
+	}(ctx, tx, err)
+
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for order: %w", err)
 	}
@@ -30,7 +36,6 @@ func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
 			"VALUES (@orderId, @customerId, @createdAt)", args)
 
 	if err != nil {
-		_ = tx.Rollback(ctx)
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
@@ -41,14 +46,12 @@ func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
 			item.ItemID, item.Quantity, item.Price, orderIdBytes)
 
 		if err != nil {
-			_ = tx.Rollback(ctx)
 			return fmt.Errorf("failed to insert line item: %w", err)
 		}
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		_ = tx.Rollback(ctx)
 		return fmt.Errorf("failed to commit order transaction %w", err)
 	}
 
