@@ -20,8 +20,8 @@ type Handler struct {
 
 type Repository interface {
 	Insert(ctx context.Context, order Order) error
-	FindByID(ctx context.Context, id uint64) (Order, error)
-	DeleteByID(ctx context.Context, id uint64) error
+	FindByID(ctx context.Context, id int64) (Order, error)
+	DeleteByID(ctx context.Context, id int64) error
 	Update(ctx context.Context, order Order) error
 	FindAll(ctx context.Context, page FindAllPage) (FindResult, error)
 }
@@ -39,7 +39,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().UTC()
 	createdOrder := Order{
-		OrderID:    rand.Uint64(),
+		OrderID:    rand.Int63(),
 		CustomerID: body.CustomerID,
 		LineItems:  body.LineItems,
 		CreatedAt:  &now,
@@ -109,7 +109,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	const base = 10
 	const bitSize = 64
 
-	orderID, err := strconv.ParseUint(idParam, base, bitSize)
+	orderID, err := strconv.ParseInt(idParam, base, bitSize)
 	if err != nil {
 		fmt.Println("failed to parse id:", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -148,7 +148,7 @@ func (h *Handler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 	const base = 10
 	const bitSize = 64
 
-	orderID, err := strconv.ParseUint(idParam, base, bitSize)
+	orderID, err := strconv.ParseInt(idParam, base, bitSize)
 	if err != nil {
 		fmt.Println("failed to parse id:", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -207,7 +207,7 @@ func (h *Handler) DeleteByID(w http.ResponseWriter, r *http.Request) {
 
 	const base = 10
 	const bitSize = 64
-	orderID, err := strconv.ParseUint(idParam, base, bitSize)
+	orderID, err := strconv.ParseInt(idParam, base, bitSize)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
