@@ -3,7 +3,9 @@ package order
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"time"
 )
 
 type PostgresRepo struct {
@@ -55,8 +57,57 @@ func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
 }
 
 func (p *PostgresRepo) FindByID(ctx context.Context, id int64) (Order, error) {
-	//TODO implement me
-	panic("implement me")
+	args := pgx.NamedArgs{
+		"orderId": id,
+	}
+
+	rows, err := p.Client.Query(ctx, "SELECT item_id, quantity, price FROM line_item WHERE order_id = @orderId", args)
+	if err != nil {
+		return Order{}, fmt.Errorf("failed to query line item: %w", err)
+	}
+	defer func(pgx.Rows) {
+		rows.Close()
+	}(rows)
+
+	var items []LineItem
+	for rows.Next() {
+		var itemID uuid.UUID
+		var quantity uint
+		var price uint
+		err = rows.Scan(&itemID, &quantity, &price)
+		if err != nil {
+			return Order{}, fmt.Errorf("error scanning line_item row: %w", err)
+		}
+
+		items = append(items, LineItem{itemID, quantity, price})
+	}
+	rows.Close()
+
+	row := p.Client.QueryRow(ctx, "SELECT order_id, customer_id, created_at, shipped_at, completed_at "+
+		"FROM order_store WHERE order_id = @orderId", args)
+
+	var orderID int64
+	var customerID uuid.UUID
+	var createdAt *time.Time
+	var shippedAt *time.Time
+	var completedAt *time.Time
+	err = row.Scan(&orderID, &customerID, &createdAt, &shippedAt, &completedAt)
+	if err != nil {
+		return Order{}, fmt.Errorf("error scanning order row: %w", err)
+	}
+
+	utc := time.Time.UTC(*createdAt)
+	createdAt = &utc
+	if shippedAt != nil {
+		utc = time.Time.UTC(*shippedAt)
+		shippedAt = &utc
+	}
+	if completedAt != nil {
+		utc = time.Time.UTC(*completedAt)
+		completedAt = &utc
+	}
+
+	return Order{orderID, customerID, items, createdAt, shippedAt, completedAt}, nil
 }
 
 func (p *PostgresRepo) DeleteByID(ctx context.Context, id int64) error {
