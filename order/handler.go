@@ -31,6 +31,11 @@ type FindAllPage struct {
 	Offset uint64
 }
 
+type FindResult struct {
+	Orders []Order
+	Cursor uint64
+}
+
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		CustomerID uuid.UUID  `json:"customer_id"`

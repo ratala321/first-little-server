@@ -121,11 +121,6 @@ func (repo *RedisRepo) Update(ctx context.Context, order Order) error {
 	return nil
 }
 
-type FindResult struct {
-	Orders []Order
-	Cursor uint64
-}
-
 func (repo *RedisRepo) FindAll(ctx context.Context, page FindAllPage) (FindResult, error) {
 	res := repo.Client.SScan(ctx, "orders", page.Offset, "*", int64(page.Size))
 
