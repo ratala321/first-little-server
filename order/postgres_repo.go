@@ -81,7 +81,11 @@ func (p *PostgresRepo) FindByID(ctx context.Context, id int64) (Order, error) {
 
 		items = append(items, LineItem{itemID, quantity, price})
 	}
+
 	rows.Close()
+	if rows.Err() != nil {
+		return Order{}, fmt.Errorf("error when closing line_item rows %w", rows.Err())
+	}
 
 	row := p.Client.QueryRow(ctx, "SELECT order_id, customer_id, created_at, shipped_at, completed_at "+
 		"FROM order_store WHERE order_id = @orderId", args)
