@@ -146,8 +146,22 @@ func (p *PostgresRepo) DeleteByID(ctx context.Context, id int64) error {
 }
 
 func (p *PostgresRepo) Update(ctx context.Context, order Order) error {
-	//TODO implement me
-	panic("implement me")
+	args := pgx.NamedArgs{
+		"orderId":     order.OrderID,
+		"createdAt":   order.CreatedAt,
+		"shippedAt":   order.ShippedAt,
+		"completedAt": order.CompletedAt,
+	}
+	_, err := p.Client.Exec(ctx,
+		"UPDATE order_store SET "+
+			"created_at = @createdAt, shipped_at = @shippedAt, completed_at = @completedAt WHERE order_id = @orderId",
+		args)
+
+	if err != nil {
+		return fmt.Errorf("failed to update order: %w", err)
+	}
+
+	return nil
 }
 
 func (p *PostgresRepo) FindAll(ctx context.Context, page FindAllPage) (FindResult, error) {
