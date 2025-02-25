@@ -121,11 +121,6 @@ func (repo *RedisRepo) Update(ctx context.Context, order Order) error {
 	return nil
 }
 
-type FindAllPage struct {
-	Size   uint
-	Offset uint64
-}
-
 type FindResult struct {
 	Orders []Order
 	Cursor uint64

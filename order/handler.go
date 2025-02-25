@@ -26,6 +26,11 @@ type Repository interface {
 	FindAll(ctx context.Context, page FindAllPage) (FindResult, error)
 }
 
+type FindAllPage struct {
+	Size   uint
+	Offset uint64
+}
+
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		CustomerID uuid.UUID  `json:"customer_id"`
