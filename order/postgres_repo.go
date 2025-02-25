@@ -62,12 +62,12 @@ func (p *PostgresRepo) FindByID(ctx context.Context, id int64) (Order, error) {
 	}
 
 	rows, err := p.Client.Query(ctx, "SELECT item_id, quantity, price FROM line_item WHERE order_id = @orderId", args)
-	if err != nil {
-		return Order{}, fmt.Errorf("failed to query line item: %w", err)
-	}
 	defer func(pgx.Rows) {
 		rows.Close()
 	}(rows)
+	if err != nil {
+		return Order{}, fmt.Errorf("failed to query line item: %w", err)
+	}
 
 	var items []LineItem
 	for rows.Next() {
