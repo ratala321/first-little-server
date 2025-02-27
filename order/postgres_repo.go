@@ -169,6 +169,52 @@ func (p *PostgresRepo) Update(ctx context.Context, order Order) error {
 }
 
 func (p *PostgresRepo) FindAll(ctx context.Context, page FindAllPage) (FindResult, error) {
-	//TODO implement me
-	panic("implement me")
+	rows, err := p.Client.Query(ctx, "SELECT os.order_id, customer_id, created_at, shipped_at, completed_at, item_id, quantity, price "+
+		"FROM order_store AS os JOIN line_item AS li "+
+		"ON os.order_id = li.order_id OFFSET $1 LIMIT $2", page.Offset, page.Size)
+	defer func(pgx.Rows) {
+		rows.Close()
+	}(rows)
+
+	if err != nil {
+		return FindResult{}, fmt.Errorf("failed to query line item: %w", err)
+	}
+
+	var orders []Order
+	const invalidOrderID int64 = -1
+	var lastOrderID int64 = -1
+	for rows.Next() {
+		var (
+			orderID     int64
+			customerID  uuid.UUID
+			createdAt   *time.Time
+			shippedAt   *time.Time
+			completedAt *time.Time
+		)
+		var (
+			itemID   uuid.UUID
+			quantity uint
+			price    uint
+		)
+
+		err = rows.Scan(&orderID, &customerID, &createdAt, &shippedAt, &completedAt, &itemID, &quantity, &price)
+
+		if err != nil {
+			return FindResult{}, fmt.Errorf("error scanning orders join on line_item row: %w", err)
+		}
+
+		if orderID == invalidOrderID || orderID != lastOrderID {
+			lastOrderID = orderID
+			orders = append(orders, Order{orderID, customerID, []LineItem{}, createdAt, shippedAt, completedAt})
+		}
+
+		orders[len(orders)-1].LineItems = append(orders[len(orders)-1].LineItems, LineItem{itemID, quantity, price})
+	}
+	rows.Close()
+
+	if err := rows.Err(); err != nil {
+		return FindResult{}, fmt.Errorf("error closing rows: %w", err)
+	}
+
+	return FindResult{Orders: orders, Cursor: page.Offset + uint64(page.Size)}, nil
 }
