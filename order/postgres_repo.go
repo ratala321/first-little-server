@@ -28,6 +28,13 @@ const (
 	priceRow      = "price"
 )
 
+const insertIntoOrderSQL = "INSERT INTO " + orderTable +
+	" (" + orderIdRow + ", " + customerIdRow + ", " + createdAtRow + ")" +
+	" VALUES (@orderId, @customerId, @createdAt)"
+const insertIntoLineItemSQL = "INSERT INTO " + lineItemTable +
+	" (" + lineItemIdRow + ", " + quantityRow + ", " + priceRow + ", " + orderIdRow + ")" +
+	"VALUES ($1, $2, $3, $4)"
+
 func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
 	tx, err := p.Client.BeginTx(ctx, pgx.TxOptions{})
 	defer func(context.Context, pgx.Tx, error) {
@@ -45,19 +52,14 @@ func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
 		"customerId": order.CustomerID,
 		"createdAt":  order.CreatedAt,
 	}
-	_, err = tx.Exec(ctx,
-		"INSERT INTO "+orderTable+" ("+orderIdRow+", "+customerIdRow+", "+createdAtRow+")"+
-			"VALUES (@orderId, @customerId, @createdAt)", args)
+	_, err = tx.Exec(ctx, insertIntoOrderSQL, args)
 
 	if err != nil {
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
 	for _, item := range order.LineItems {
-		_, err := tx.Exec(ctx,
-			"INSERT INTO "+lineItemTable+" ("+lineItemIdRow+", "+quantityRow+", "+priceRow+", "+orderIdRow+")"+
-				"VALUES ($1, $2, $3, $4)",
-			item.ItemID, item.Quantity, item.Price, order.OrderID)
+		_, err := tx.Exec(ctx, insertIntoLineItemSQL, item.ItemID, item.Quantity, item.Price, order.OrderID)
 
 		if err != nil {
 			return fmt.Errorf("failed to insert line item: %w", err)
@@ -72,13 +74,18 @@ func (p *PostgresRepo) Insert(ctx context.Context, order Order) error {
 	return nil
 }
 
+const selectLineItemSQL = "SELECT " + lineItemIdRow + ", " + quantityRow + ", " + priceRow +
+	" FROM " + lineItemTable + " WHERE " + orderIdRow + " = @orderId"
+const selectOrderSQL = "SELECT " + orderIdRow + ", " + customerIdRow + ", " + createdAtRow +
+	", " + shippedAtRow + ", " + completedAtRow + " " +
+	"FROM " + orderTable + " WHERE " + orderIdRow + " = @orderId"
+
 func (p *PostgresRepo) FindByID(ctx context.Context, id int64) (Order, error) {
 	args := pgx.NamedArgs{
 		"orderId": id,
 	}
 
-	rows, err := p.Client.Query(ctx, "SELECT "+lineItemIdRow+", "+quantityRow+", "+priceRow+
-		" FROM "+lineItemTable+" WHERE "+orderIdRow+" = @orderId", args)
+	rows, err := p.Client.Query(ctx, selectLineItemSQL, args)
 	defer func(pgx.Rows) {
 		rows.Close()
 	}(rows)
@@ -104,9 +111,7 @@ func (p *PostgresRepo) FindByID(ctx context.Context, id int64) (Order, error) {
 		return Order{}, fmt.Errorf("error when closing line_item rows %w", rows.Err())
 	}
 
-	row := p.Client.QueryRow(ctx, "SELECT "+orderIdRow+", "+customerIdRow+", "+createdAtRow+
-		", "+shippedAtRow+", "+completedAtRow+" "+
-		"FROM "+orderTable+" WHERE "+orderIdRow+" = @orderId", args)
+	row := p.Client.QueryRow(ctx, selectOrderSQL, args)
 
 	var orderID int64
 	var customerID uuid.UUID
@@ -132,6 +137,9 @@ func (p *PostgresRepo) FindByID(ctx context.Context, id int64) (Order, error) {
 	return Order{orderID, customerID, items, createdAt, shippedAt, completedAt}, nil
 }
 
+const deleteLineItemSQL = "DELETE FROM " + lineItemTable + " WHERE " + orderIdRow + " = @orderId"
+const deleteOrderSQL = "DELETE FROM " + orderTable + " WHERE " + orderIdRow + " = @orderId"
+
 func (p *PostgresRepo) DeleteByID(ctx context.Context, id int64) error {
 	tx, err := p.Client.BeginTx(ctx, pgx.TxOptions{})
 	defer func(context.Context, pgx.Tx, error) {
@@ -148,12 +156,12 @@ func (p *PostgresRepo) DeleteByID(ctx context.Context, id int64) error {
 		"orderId": id,
 	}
 
-	_, err = tx.Exec(ctx, "DELETE FROM "+lineItemTable+" WHERE "+orderIdRow+" = @orderId", args)
+	_, err = tx.Exec(ctx, deleteLineItemSQL, args)
 	if err != nil {
 		return fmt.Errorf("failed to delete associated line item: %w", err)
 	}
 
-	_, err = tx.Exec(ctx, "DELETE FROM "+orderTable+" WHERE "+orderIdRow+" = @orderId", args)
+	_, err = tx.Exec(ctx, deleteOrderSQL, args)
 
 	if err != nil {
 		return fmt.Errorf("failed to delete order: %w", err)
@@ -167,6 +175,10 @@ func (p *PostgresRepo) DeleteByID(ctx context.Context, id int64) error {
 	return nil
 }
 
+const updateOrderSQL = "UPDATE " + orderTable + " SET " +
+	createdAtRow + " = @createdAt, " + shippedAtRow + " = @shippedAt, " +
+	completedAtRow + " = @completedAt WHERE " + orderIdRow + " = @orderId"
+
 func (p *PostgresRepo) Update(ctx context.Context, order Order) error {
 	args := pgx.NamedArgs{
 		"orderId":     order.OrderID,
@@ -174,11 +186,7 @@ func (p *PostgresRepo) Update(ctx context.Context, order Order) error {
 		"shippedAt":   order.ShippedAt,
 		"completedAt": order.CompletedAt,
 	}
-	_, err := p.Client.Exec(ctx,
-		"UPDATE "+orderTable+" SET "+
-			createdAtRow+" = @createdAt, "+shippedAtRow+" = @shippedAt, "+completedAtRow+" = @completedAt WHERE "+
-			orderIdRow+" = @orderId",
-		args)
+	_, err := p.Client.Exec(ctx, updateOrderSQL, args)
 
 	if err != nil {
 		return fmt.Errorf("failed to update order: %w", err)
@@ -187,11 +195,13 @@ func (p *PostgresRepo) Update(ctx context.Context, order Order) error {
 	return nil
 }
 
+const findAllSQL = "SELECT os." + orderIdRow + ", " + customerIdRow + ", " + createdAtRow + ", " + shippedAtRow +
+	", " + completedAtRow + ", " + lineItemIdRow + ", " + quantityRow + ", " + priceRow + " " +
+	"FROM " + orderTable + " AS os JOIN " + lineItemTable + " AS li " +
+	"ON os." + orderIdRow + " = li." + orderIdRow + " OFFSET $1 LIMIT $2"
+
 func (p *PostgresRepo) FindAll(ctx context.Context, page FindAllPage) (FindResult, error) {
-	rows, err := p.Client.Query(ctx, "SELECT os."+orderIdRow+", "+customerIdRow+", "+createdAtRow+", "+shippedAtRow+
-		", "+completedAtRow+", "+lineItemIdRow+", "+quantityRow+", "+priceRow+" "+
-		"FROM "+orderTable+" AS os JOIN "+lineItemTable+" AS li "+
-		"ON os."+orderIdRow+" = li."+orderIdRow+" OFFSET $1 LIMIT $2", page.Offset, page.Size)
+	rows, err := p.Client.Query(ctx, findAllSQL, page.Offset, page.Size)
 	defer func(pgx.Rows) {
 		rows.Close()
 	}(rows)
